@@ -35,6 +35,19 @@ exports.validateRegister = [
     .withMessage('Password is required')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters'),
+  body('phone')
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .matches(/^[6-9]\d{9}$/)
+    .withMessage('Please provide a valid Indian phone number'),
+  body('role')
+    .optional()
+    .isIn(['customer', 'shop_owner', 'delivery'])
+    .withMessage('Invalid role. Must be customer, shop_owner, or delivery'),
+  body('vehicleType')
+    .optional()
+    .isIn(['bike', 'scooter', 'bicycle', 'car', 'other'])
+    .withMessage('Invalid vehicle type'),
   validate,
 ];
 

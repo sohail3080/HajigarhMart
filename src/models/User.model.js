@@ -28,9 +28,49 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'admin'],
-      default: 'user',
+      enum: ['admin', 'shop_owner', 'customer', 'delivery'],
+      default: 'customer',
     },
+    phone: {
+      type: String,
+      required: [true, 'Please provide a phone number'],
+      unique: true,
+    },
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      pincode: String,
+      coordinates: {
+        latitude: Number,
+        longitude: Number,
+      },
+    },
+    // Shop Owner specific fields
+    shop: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shop',
+    },
+    // Delivery personnel specific fields
+    vehicleType: {
+      type: String,
+      enum: ['bike', 'scooter', 'bicycle', 'car', 'other'],
+    },
+    vehicleNumber: String,
+    drivingLicense: String,
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
+    // Approval status (for shop owners and delivery personnel)
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: function() {
+        return ['shop_owner', 'delivery'].includes(this.role) ? 'pending' : 'approved';
+      },
+    },
+    rejectionReason: String,
     avatar: {
       type: String,
       default: null,

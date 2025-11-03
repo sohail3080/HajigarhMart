@@ -69,10 +69,22 @@ const productSchema = new mongoose.Schema(
         },
       },
     ],
-    user: {
+    shop: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Shop',
       required: true,
+    },
+    unit: {
+      type: String,
+      default: 'piece',
+    },
+    minOrderQuantity: {
+      type: Number,
+      default: 1,
+    },
+    maxOrderQuantity: {
+      type: Number,
+      default: 100,
     },
     isActive: {
       type: Boolean,

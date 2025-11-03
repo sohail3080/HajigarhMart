@@ -45,18 +45,4 @@ exports.validateProduct = [
   validate,
 ];
 
-/**
- * Review validation
- */
-exports.validateReview = [
-  body('rating')
-    .notEmpty()
-    .withMessage('Rating is required')
-    .isNumeric()
-    .withMessage('Rating must be a number')
-    .custom((value) => value >= 1 && value <= 5)
-    .withMessage('Rating must be between 1 and 5'),
-  body('comment').trim().notEmpty().withMessage('Comment is required'),
-  validate,
-];
 

@@ -5,7 +5,19 @@ class ProductService {
   /**
    * Create a new product
    */
-  async createProduct(productData) {
+  async createProduct(productData, userId) {
+    // Verify shop ownership
+    const Shop = require('../models/Shop.model');
+    const shop = await Shop.findById(productData.shop);
+    
+    if (!shop) {
+      throw new ErrorResponse('Shop not found', 404);
+    }
+
+    if (shop.owner.toString() !== userId.toString()) {
+      throw new ErrorResponse('Not authorized to add products to this shop', 403);
+    }
+
     const product = await Product.create(productData);
     return product;
   }
@@ -73,7 +85,7 @@ class ProductService {
    * Get product by ID
    */
   async getProductById(productId) {
-    const product = await Product.findById(productId).populate('user', 'name email');
+    const product = await Product.findById(productId).populate('shop', 'name address');
     if (!product) {
       throw new ErrorResponse('Product not found', 404);
     }
@@ -81,17 +93,60 @@ class ProductService {
   }
 
   /**
+   * Get shop products
+   */
+  async getShopProducts(shopId, queryParams) {
+    const page = parseInt(queryParams.page, 10) || 1;
+    const limit = parseInt(queryParams.limit, 10) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = { shop: shopId, isActive: true };
+
+    // Search by name
+    if (queryParams.search) {
+      query.name = { $regex: queryParams.search, $options: 'i' };
+    }
+
+    // Filter by category
+    if (queryParams.category) {
+      query.category = queryParams.category;
+    }
+
+    const products = await Product.find(query)
+      .sort('-createdAt')
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Product.countDocuments(query);
+
+    return {
+      products,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
    * Update product
    */
-  async updateProduct(productId, updateData) {
-    const product = await Product.findByIdAndUpdate(productId, updateData, {
-      new: true,
-      runValidators: true,
-    });
-
+  async updateProduct(productId, updateData, userId) {
+    const product = await Product.findById(productId).populate('shop');
+    
     if (!product) {
       throw new ErrorResponse('Product not found', 404);
     }
+
+    // Check shop ownership
+    if (product.shop.owner.toString() !== userId.toString()) {
+      throw new ErrorResponse('Not authorized to update this product', 403);
+    }
+
+    Object.assign(product, updateData);
+    await product.save();
 
     return product;
   }
@@ -99,51 +154,22 @@ class ProductService {
   /**
    * Delete product
    */
-  async deleteProduct(productId) {
-    const product = await Product.findByIdAndDelete(productId);
+  async deleteProduct(productId, userId) {
+    const product = await Product.findById(productId).populate('shop');
+    
     if (!product) {
       throw new ErrorResponse('Product not found', 404);
     }
+
+    // Check shop ownership
+    if (product.shop.owner.toString() !== userId.toString()) {
+      throw new ErrorResponse('Not authorized to delete this product', 403);
+    }
+
+    await Product.findByIdAndDelete(productId);
     return true;
   }
 
-  /**
-   * Add product review
-   */
-  async addProductReview(productId, userId, reviewData) {
-    const product = await Product.findById(productId);
-
-    if (!product) {
-      throw new ErrorResponse('Product not found', 404);
-    }
-
-    // Check if user already reviewed
-    const alreadyReviewed = product.reviews.find(
-      (review) => review.user.toString() === userId.toString()
-    );
-
-    if (alreadyReviewed) {
-      throw new ErrorResponse('Product already reviewed', 400);
-    }
-
-    const review = {
-      user: userId,
-      name: reviewData.name,
-      rating: Number(reviewData.rating),
-      comment: reviewData.comment,
-    };
-
-    product.reviews.push(review);
-    product.numOfReviews = product.reviews.length;
-
-    // Calculate average rating
-    product.ratings =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      product.reviews.length;
-
-    await product.save();
-    return product;
-  }
 }
 
 module.exports = new ProductService();
