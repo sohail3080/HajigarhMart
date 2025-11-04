@@ -81,15 +81,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = await AsyncStorage.getItem('authToken');
       const userData = await AsyncStorage.getItem('userData');
 
+      console.log('🔍 [AUTH] Checking auth status...');
+      console.log('🔍 [AUTH] Token exists:', !!token);
+      console.log('🔍 [AUTH] UserData exists:', !!userData);
+
       if (token && userData) {
         const parsedUser = JSON.parse(userData);
+        console.log('🔍 [AUTH] Parsed user:', JSON.stringify(parsedUser, null, 2));
+        console.log('🔍 [AUTH] User ID:', parsedUser.id);
+        
         setUser(parsedUser);
-        // Optionally verify token with backend (but don't await to avoid blocking)
-        refreshUser();
+        setIsLoading(false);
+        // Verify token with backend in background
+        refreshUser().catch((error) => {
+          console.error('Background refresh failed:', error);
+        });
+      } else {
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('Failed to check auth status:', error);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -203,11 +214,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const response = await apiService.get<{ user: any }>('/users/me');
+      console.log('🔄 [AUTH] Refreshing user data...');
+      const response = await apiService.get<any>('/users/me');
+
+      console.log('🔄 [AUTH] Refresh response:', JSON.stringify(response, null, 2));
 
       if (response.success && response.data) {
-        const userData = response.data.user;
+        // Backend returns user object directly in response.data
+        const userData = response.data;
         
+        if (!userData) {
+          console.error('❌ [AUTH] User data is missing in response');
+          return;
+        }
+
+        console.log('🔄 [AUTH] User data from backend:', JSON.stringify(userData, null, 2));
+
         const appUser: User = {
           id: userData._id || userData.id,
           email: userData.email,
@@ -224,11 +246,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           address: userData.address,
         };
 
+        console.log('🔄 [AUTH] Transformed app user:', JSON.stringify(appUser, null, 2));
+
         await AsyncStorage.setItem('userData', JSON.stringify(appUser));
         setUser(appUser);
+      } else {
+        console.error('❌ [AUTH] Refresh failed:', response.error);
+        // If refresh fails, keep the existing user data
       }
     } catch (error) {
-      console.error('Failed to refresh user:', error);
+      console.error('❌ [AUTH] Failed to refresh user:', error);
+      // Don't logout user if refresh fails, they can continue with cached data
     }
   };
 

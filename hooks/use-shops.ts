@@ -48,7 +48,8 @@ export function useShop(shopId: string) {
     try {
       const response = await shopApi.getShopById(shopId);
       if (response.success && response.data) {
-        setShop(response.data.shop);
+        // Backend returns shop directly in data
+        setShop(response.data);
       } else {
         setError(response.error || 'Failed to fetch shop');
       }
@@ -78,7 +79,8 @@ export function useMyShop() {
     try {
       const response = await shopApi.getMyShop();
       if (response.success && response.data) {
-        setShop(response.data.shop);
+        // Backend returns shop directly in data
+        setShop(response.data);
       } else {
         setError(response.error || 'Failed to fetch shop');
       }
@@ -94,5 +96,37 @@ export function useMyShop() {
   }, []);
 
   return { shop, loading, error, refetch: fetchMyShop };
+}
+
+export function useAllShops(params?: { page?: number; limit?: number; search?: string; approvalStatus?: string; isActive?: string }) {
+  const [shops, setShops] = useState<any[]>([]);
+  const [pagination, setPagination] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchShops = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await shopApi.getAllShops(params);
+      if (response.success && response.data) {
+        setShops(response.data.shops || []);
+        setPagination(response.data.pagination);
+      } else {
+        setError(response.error || 'Failed to fetch shops');
+      }
+    } catch (err) {
+      setError('An error occurred while fetching shops');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchShops();
+  }, [params?.page, params?.search, params?.approvalStatus, params?.isActive]);
+
+  return { shops, pagination, loading, error, refetch: fetchShops };
 }
 

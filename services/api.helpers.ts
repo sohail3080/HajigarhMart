@@ -39,7 +39,7 @@ export const userApi = {
     apiService.post<{ user: any; token: string }>('/users/register', data),
 
   getProfile: () =>
-    apiService.get<{ user: any }>('/users/me'),
+    apiService.get<any>('/users/me'),
 
   updateProfile: (data: Partial<User>) =>
     apiService.put<{ user: any }>('/users/profile', data),
@@ -80,6 +80,11 @@ export const shopApi = {
   createShop: (data: CreateShopRequest) =>
     apiService.post<{ shop: any }>('/shops', data),
 
+  getAllShops: (query?: { page?: number; limit?: number; search?: string; approvalStatus?: string; isActive?: string }) =>
+    apiService.get<{ shops: any[]; pagination: any }>(
+      `/shops?${new URLSearchParams(query as any).toString()}`
+    ),
+
   getShopById: (shopId: string) =>
     apiService.get<{ shop: any }>(`/shops/${shopId}`),
 
@@ -102,6 +107,9 @@ export const shopApi = {
 
   rejectShop: (shopId: string, reason: string) =>
     apiService.patch<{ shop: any }>(`/shops/${shopId}/reject`, { reason }),
+
+  toggleShopStatus: (shopId: string) =>
+    apiService.patch<{ shop: any }>(`/shops/${shopId}/toggle-status`, {}),
 };
 
 // ==================== PRODUCT ENDPOINTS ====================

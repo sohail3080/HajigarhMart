@@ -1,17 +1,86 @@
 // Pending Approval Screen - for shop owners and delivery partners awaiting admin approval
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
+import { shopApi } from '@/services/api.helpers';
 
 export default function PendingApprovalScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const [shopExists, setShopExists] = useState(false);
+  const [checkingShop, setCheckingShop] = useState(true);
+
+  useEffect(() => {
+    if (user?.role === 'shop_owner') {
+      checkShopStatus();
+    } else {
+      setCheckingShop(false);
+    }
+  }, [user]);
+
+  const checkShopStatus = async () => {
+    try {
+      const response = await shopApi.getMyShop();
+      // Backend returns shop directly in data
+      setShopExists(response.success && !!response.data);
+    } catch (error) {
+      setShopExists(false);
+    } finally {
+      setCheckingShop(false);
+    }
+  };
+
+  const handleSetupShop = () => {
+    router.push('/(shop)/setup');
+  };
 
   const handleLogout = async () => {
     await logout();
     router.replace('/(auth)/login');
   };
+
+  if (checkingShop) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2E7D32" />
+      </View>
+    );
+  }
+
+  // If shop owner hasn't created shop yet
+  if (user?.role === 'shop_owner' && !shopExists) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.iconContainer}>
+          <Text style={styles.icon}>🏪</Text>
+        </View>
+
+        <Text style={styles.title}>Complete Shop Setup</Text>
+        <Text style={styles.subtitle}>
+          You need to set up your shop with location details before it can be reviewed for approval.
+        </Text>
+
+        <View style={styles.messageBox}>
+          <Text style={styles.messageTitle}>What you need:</Text>
+          <Text style={styles.messageText}>• Shop name and description</Text>
+          <Text style={styles.messageText}>• Shop category</Text>
+          <Text style={styles.messageText}>• Contact details (phone & email)</Text>
+          <Text style={styles.messageText}>• Complete shop address</Text>
+          <Text style={styles.messageText}>• Location coordinates (auto-captured)</Text>
+          <Text style={styles.messageText}>• Business hours</Text>
+        </View>
+
+        <TouchableOpacity style={styles.setupButton} onPress={handleSetupShop}>
+          <Text style={styles.setupButtonText}>Set Up My Shop</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -21,7 +90,7 @@ export default function PendingApprovalScreen() {
 
       <Text style={styles.title}>Pending Approval</Text>
       <Text style={styles.subtitle}>
-        Your {user?.role === 'shop_owner' ? 'shop owner' : 'delivery partner'} account is being reviewed by our admin team.
+        Your {user?.role === 'shop_owner' ? 'shop' : 'delivery partner account'} is being reviewed by our admin team.
       </Text>
 
       <View style={styles.infoBox}>
@@ -50,10 +119,10 @@ export default function PendingApprovalScreen() {
       <View style={styles.messageBox}>
         <Text style={styles.messageTitle}>What happens next?</Text>
         <Text style={styles.messageText}>
-          • Our admin team will review your application within 24-48 hours
+          • Our admin team will review your {user?.role === 'shop_owner' ? 'shop' : 'application'} within 24-48 hours
         </Text>
         <Text style={styles.messageText}>
-          • You'll receive an email notification once your account is approved
+          • You'll receive a notification once approved
         </Text>
         <Text style={styles.messageText}>
           • After approval, you can log in and start using all features
@@ -93,6 +162,12 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   iconContainer: {
     width: 100,
@@ -196,6 +271,19 @@ const styles = StyleSheet.create({
   },
   contactButtonText: {
     color: '#2E7D32',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  setupButton: {
+    width: '100%',
+    backgroundColor: '#2E7D32',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  setupButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },

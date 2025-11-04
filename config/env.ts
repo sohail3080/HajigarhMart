@@ -4,9 +4,9 @@
 const ENV = {
   development: {
     // Use deployed backend for development as well
-    API_URL: 'https://hajigarh-mart.vercel.app/api',
+    // API_URL: 'https://hajigarh-mart.vercel.app/api',
     // If you want to use local backend, uncomment below and comment above:
-    // API_URL: 'http://10.0.2.2:5000/api',  // For Android Emulator
+    API_URL: 'http://192.168.0.174:5000/api',  // For Android Emulator
     // API_URL: 'http://localhost:5000/api',  // For iOS Simulator
   },
   production: {

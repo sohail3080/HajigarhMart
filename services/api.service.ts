@@ -12,10 +12,11 @@ export interface ApiResponse<T> {
 class ApiService {
   private baseUrl: string;
   private token: string | null = null;
+  private tokenLoadPromise: Promise<void>;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    this.loadToken();
+    this.tokenLoadPromise = this.loadToken();
   }
 
   // Load token from AsyncStorage on initialization
@@ -28,6 +29,11 @@ class ApiService {
     } catch (error) {
       console.error('Failed to load token:', error);
     }
+  }
+
+  // Ensure token is loaded before making requests
+  private async ensureTokenLoaded() {
+    await this.tokenLoadPromise;
   }
 
   async setToken(token: string) {
@@ -70,7 +76,11 @@ class ApiService {
     try {
       const data = await response.json();
 
-      console.log('🌐 data==>:', data);
+      // Only log errors that aren't expected (skip "Shop not found" and similar)
+      if (!response.ok && data.error !== 'Shop not found') {
+        console.log('🌐 data==>:', data);
+      }
+      
       if (!response.ok) {
         return {
           success: false,
@@ -89,6 +99,7 @@ class ApiService {
 
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
+      await this.ensureTokenLoaded();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'GET',
         headers: this.getHeaders(),
@@ -105,6 +116,7 @@ class ApiService {
 
   async post<T>(endpoint: string, data: any, isFormData: boolean = false): Promise<ApiResponse<T>> {
     try {
+      await this.ensureTokenLoaded();
       const url = `${this.baseUrl}${endpoint}`;
       console.log('🌐 [API] POST Request:', url);
       console.log('🌐 [API] Headers:', this.getHeaders(isFormData));
@@ -135,6 +147,7 @@ class ApiService {
 
   async put<T>(endpoint: string, data: any, isFormData: boolean = false): Promise<ApiResponse<T>> {
     try {
+      await this.ensureTokenLoaded();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
         headers: this.getHeaders(isFormData),
@@ -152,6 +165,7 @@ class ApiService {
 
   async patch<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
     try {
+      await this.ensureTokenLoaded();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PATCH',
         headers: this.getHeaders(),
@@ -169,6 +183,7 @@ class ApiService {
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
+      await this.ensureTokenLoaded();
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'DELETE',
         headers: this.getHeaders(),

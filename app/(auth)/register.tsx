@@ -29,7 +29,6 @@ export default function RegisterScreen() {
     password: '',
     confirmPassword: '',
     // Additional fields based on role
-    shopName: '',
     address: '',
     vehicleNumber: '',
     vehicleType: 'bike',
@@ -67,16 +66,6 @@ export default function RegisterScreen() {
     }
 
     // Role-specific validation
-    if (role === 'shop' && !formData.shopName.trim()) {
-      newErrors.shopName = 'Shop name is required';
-      isValid = false;
-    }
-
-    if (role === 'shop' && !formData.address.trim()) {
-      newErrors.address = 'Shop address is required';
-      isValid = false;
-    }
-
     if (role === 'delivery' && !formData.vehicleNumber.trim()) {
       newErrors.vehicleNumber = 'Vehicle number is required';
       isValid = false;
@@ -135,8 +124,8 @@ export default function RegisterScreen() {
         registrationData.vehicleNumber = formData.vehicleNumber.trim();
       }
 
-      // Add basic address for all users
-      if (formData.address.trim()) {
+      // Add basic address for customers only (shop owners will provide shop address in setup)
+      if (role === 'customer' && formData.address.trim()) {
         registrationData.address = {
           street: formData.address.trim(),
           city: 'Hajigarh', // Default city
@@ -148,21 +137,48 @@ export default function RegisterScreen() {
       const result = await register(registrationData);
 
       if (result.success) {
-        Alert.alert(
-          'Registration Successful',
-          role === 'shop' || role === 'delivery'
-            ? 'Your account has been created and is pending admin approval.'
-            : 'Your account has been created successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Navigate to root which will handle role-based routing
-                router.replace('/');
+        if (role === 'shop') {
+          // Shop owners need to complete shop setup
+          Alert.alert(
+            'Account Created!',
+            'Now let\'s set up your shop details with location.',
+            [
+              {
+                text: 'Continue',
+                onPress: () => {
+                  router.replace('/(shop)/setup');
+                },
               },
-            },
-          ]
-        );
+            ]
+          );
+        } else if (role === 'delivery') {
+          Alert.alert(
+            'Registration Successful',
+            'Your account is pending admin approval.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.replace('/(auth)/pending-approval');
+                },
+              },
+            ]
+          );
+        } else {
+          // Customer - direct access
+          Alert.alert(
+            'Registration Successful',
+            'Your account has been created successfully!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.replace('/');
+                },
+              },
+            ]
+          );
+        }
       } else {
         Alert.alert('Registration Failed', result.error || 'Please try again');
       }
@@ -249,43 +265,11 @@ export default function RegisterScreen() {
         </View>
 
         {role === 'shop' && (
-          <>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Shop Name</Text>
-              <TextInput
-                style={[styles.input, errors.shopName ? styles.inputError : null]}
-                placeholder="Enter your shop name"
-                value={formData.shopName}
-                onChangeText={(text) => {
-                  setFormData({ ...formData, shopName: text });
-                  setErrors({ ...errors, shopName: '' });
-                }}
-                editable={!loading}
-              />
-              {errors.shopName ? <Text style={styles.errorText}>{errors.shopName}</Text> : null}
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Shop Address</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  errors.address ? styles.inputError : null,
-                ]}
-                placeholder="Enter your shop address"
-                value={formData.address}
-                onChangeText={(text) => {
-                  setFormData({ ...formData, address: text });
-                  setErrors({ ...errors, address: '' });
-                }}
-                multiline
-                numberOfLines={3}
-                editable={!loading}
-              />
-              {errors.address ? <Text style={styles.errorText}>{errors.address}</Text> : null}
-            </View>
-          </>
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>
+              ℹ️ You'll provide your shop details (name, address, location) in the next step after registration.
+            </Text>
+          </View>
         )}
 
         {role === 'delivery' && (
@@ -451,6 +435,17 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontSize: 14,
     fontWeight: '600',
+  },
+  infoBox: {
+    backgroundColor: '#e0f2fe',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  infoText: {
+    color: '#0369a1',
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
 
