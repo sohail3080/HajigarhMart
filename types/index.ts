@@ -1,5 +1,5 @@
 // User Types
-export type UserRole = 'customer' | 'shop' | 'delivery' | 'admin';
+export type UserRole = 'customer' | 'shop' | 'shop_owner' | 'delivery' | 'admin';
 
 export interface User {
   id: string;

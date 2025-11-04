@@ -1,67 +1,215 @@
 import { User, UserRole } from '@/types';
-import React, { createContext, ReactNode, useContext, useState } from 'react';
+import apiService from '@/services/api.service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 interface RegisterData {
+  name: string;
   email: string;
   password: string;
-  fullName: string;
   phone: string;
   role: UserRole;
-  shopName?: string;
-  address?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    landmark?: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+  vehicleType?: string;
   vehicleNumber?: string;
+  drivingLicense?: string;
+}
+
+interface AuthResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    role: UserRole;
+    approvalStatus?: string;
+    address?: any;
+    shop?: string;
+    avatar?: string;
+    vehicleType?: string;
+    isAvailable?: boolean;
+  };
+  token: string;
+  message?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const userData = await AsyncStorage.getItem('userData');
+
+      if (token && userData) {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        // Optionally verify token with backend
+        await refreshUser();
+      }
+    } catch (error) {
+      console.error('Failed to check auth status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string) => {
-    // TODO: Implement actual API call
-    // For now, mock login
-    console.log('Login:', { email, password });
-    
-    // Mock user data - replace with actual API response
-    const mockUser: User = {
-      id: '1',
-      email,
-      fullName: 'John Doe',
-      phone: '+91 98765 43210',
-      role: 'customer',
-      createdAt: new Date().toISOString(),
-    };
-    
-    setUser(mockUser);
+    try {
+      console.log('🔵 [AUTH] Starting login process...');
+      console.log('🔵 [AUTH] Email:', email);
+      console.log('🔵 [AUTH] API URL:', apiService['baseUrl']); // Log the base URL being used
+      
+      const response = await apiService.post<AuthResponse>('/users/login', {
+        email,
+        password,
+      });
+
+      console.log('🔵 [AUTH] Login response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.data) {
+        console.log('✅ [AUTH] Login successful');
+        const { user: userData, token } = response.data;
+        
+        // Save token
+        await apiService.setToken(token);
+        console.log('✅ [AUTH] Token saved');
+
+        // Transform backend user data to app User type
+        const appUser: User = {
+          id: userData.id,
+          email: userData.email,
+          fullName: userData.name,
+          phone: userData.phone,
+          role: userData.role,
+          avatar: userData.avatar,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Save user data
+        await AsyncStorage.setItem('userData', JSON.stringify(appUser));
+        setUser(appUser);
+        console.log('✅ [AUTH] User data saved:', appUser);
+
+        return { success: true };
+      } else {
+        console.log('❌ [AUTH] Login failed:', response.error);
+        return {
+          success: false,
+          error: response.error || 'Login failed',
+        };
+      }
+    } catch (error) {
+      console.error('❌ [AUTH] Login exception:', error);
+      console.error('❌ [AUTH] Error details:', JSON.stringify(error, null, 2));
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An error occurred',
+      };
+    }
   };
 
   const register = async (data: RegisterData) => {
-    // TODO: Implement actual API call
-    console.log('Register:', data);
-    
-    // Mock registration - replace with actual API response
-    const newUser: User = {
-      id: '1',
-      email: data.email,
-      fullName: data.fullName,
-      phone: data.phone,
-      role: data.role,
-      createdAt: new Date().toISOString(),
-    };
-    
-    setUser(newUser);
+    try {
+      const response = await apiService.post<AuthResponse>('/users/register', data);
+
+      if (response.success && response.data) {
+        const { user: userData, token } = response.data;
+        
+        // Save token
+        await apiService.setToken(token);
+
+        // Transform backend user data to app User type
+        const appUser: User = {
+          id: userData.id,
+          email: userData.email,
+          fullName: userData.name,
+          phone: userData.phone,
+          role: userData.role,
+          avatar: userData.avatar,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Save user data
+        await AsyncStorage.setItem('userData', JSON.stringify(appUser));
+        setUser(appUser);
+
+        return { success: true };
+      } else {
+        return {
+          success: false,
+          error: response.error || 'Registration failed',
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An error occurred',
+      };
+    }
   };
 
-  const logout = () => {
-    setUser(null);
+  const refreshUser = async () => {
+    try {
+      const response = await apiService.get<{ user: any }>('/users/me');
+
+      if (response.success && response.data) {
+        const userData = response.data.user;
+        
+        const appUser: User = {
+          id: userData._id || userData.id,
+          email: userData.email,
+          fullName: userData.name,
+          phone: userData.phone,
+          role: userData.role,
+          avatar: userData.avatar,
+          createdAt: userData.createdAt || new Date().toISOString(),
+        };
+
+        await AsyncStorage.setItem('userData', JSON.stringify(appUser));
+        setUser(appUser);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await apiService.clearToken();
+      await AsyncStorage.removeItem('userData');
+      setUser(null);
+    } catch (error) {
+      console.error('Failed to logout:', error);
+    }
   };
 
   return (
@@ -69,9 +217,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
+        isLoading,
         login,
         register,
         logout,
+        refreshUser,
       }}
     >
       {children}

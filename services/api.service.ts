@@ -1,9 +1,8 @@
 // API Service for making HTTP requests to backend
-// TODO: Replace BASE_URL with your actual backend URL
+import { API_URL } from '@/config/env';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'http://localhost:3000/api'; // Change this to your backend URL
-
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
@@ -16,26 +15,76 @@ class ApiService {
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+    this.loadToken();
   }
 
-  setToken(token: string) {
+  // Load token from AsyncStorage on initialization
+  private async loadToken() {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (token) {
+        this.token = token;
+      }
+    } catch (error) {
+      console.error('Failed to load token:', error);
+    }
+  }
+
+  async setToken(token: string) {
     this.token = token;
+    try {
+      await AsyncStorage.setItem('authToken', token);
+    } catch (error) {
+      console.error('Failed to save token:', error);
+    }
   }
 
-  clearToken() {
+  async clearToken() {
     this.token = null;
+    try {
+      await AsyncStorage.removeItem('authToken');
+    } catch (error) {
+      console.error('Failed to clear token:', error);
+    }
   }
 
-  private getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
+  getToken(): string | null {
+    return this.token;
+  }
+
+  private getHeaders(isFormData: boolean = false): HeadersInit {
+    const headers: HeadersInit = {};
+
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
     return headers;
+  }
+
+  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
+    try {
+      const data = await response.json();
+
+      console.log('🌐 data==>:', data);
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || data.message || 'An error occurred',
+        };
+      }
+
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to parse response',
+      };
+    }
   }
 
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {
@@ -45,45 +94,75 @@ class ApiService {
         headers: this.getHeaders(),
       });
 
-      return await response.json();
+      return await this.handleResponse<T>(response);
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An error occurred',
+        error: error instanceof Error ? error.message : 'Network error occurred',
       };
     }
   }
 
-  async post<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
+  async post<T>(endpoint: string, data: any, isFormData: boolean = false): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      const url = `${this.baseUrl}${endpoint}`;
+      console.log('🌐 [API] POST Request:', url);
+      console.log('🌐 [API] Headers:', this.getHeaders(isFormData));
+      console.log('🌐 [API] Body:', isFormData ? 'FormData' : JSON.stringify(data, null, 2));
+      
+      const response = await fetch(url, {
         method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(data),
+        headers: this.getHeaders(isFormData),
+        body: isFormData ? data : JSON.stringify(data),
       });
 
-      return await response.json();
+      console.log('🌐 [API] Response Status:', response.status);
+      
+      const result = await this.handleResponse<T>(response);
+      console.log('🌐 [API] Response Data:', result);
+
+      return result;
     } catch (error) {
+      console.error('❌ [API] Network Error:', error);
+      console.error('❌ [API] Error Type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('❌ [API] Error Message:', error instanceof Error ? error.message : String(error));
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An error occurred',
+        error: error instanceof Error ? error.message : 'Network error occurred',
       };
     }
   }
 
-  async put<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
+  async put<T>(endpoint: string, data: any, isFormData: boolean = false): Promise<ApiResponse<T>> {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
+        headers: this.getHeaders(isFormData),
+        body: isFormData ? data : JSON.stringify(data),
+      });
+
+      return await this.handleResponse<T>(response);
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error occurred',
+      };
+    }
+  }
+
+  async patch<T>(endpoint: string, data: any): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'PATCH',
         headers: this.getHeaders(),
         body: JSON.stringify(data),
       });
 
-      return await response.json();
+      return await this.handleResponse<T>(response);
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An error occurred',
+        error: error instanceof Error ? error.message : 'Network error occurred',
       };
     }
   }
@@ -95,16 +174,16 @@ class ApiService {
         headers: this.getHeaders(),
       });
 
-      return await response.json();
+      return await this.handleResponse<T>(response);
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An error occurred',
+        error: error instanceof Error ? error.message : 'Network error occurred',
       };
     }
   }
 }
 
-export const apiService = new ApiService(BASE_URL);
+export const apiService = new ApiService(API_URL);
 export default apiService;
 
