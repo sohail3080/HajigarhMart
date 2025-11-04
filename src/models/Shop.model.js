@@ -74,6 +74,17 @@ const shopSchema = new mongoose.Schema(
         },
       },
     },
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        required: true,
+      },
+    },
     images: [
       {
         public_id: String,
@@ -145,8 +156,19 @@ const shopSchema = new mongoose.Schema(
   }
 );
 
+// Pre-save middleware to sync location with address coordinates
+shopSchema.pre('save', function (next) {
+  if (this.address && this.address.coordinates) {
+    this.location = {
+      type: 'Point',
+      coordinates: [this.address.coordinates.longitude, this.address.coordinates.latitude],
+    };
+  }
+  next();
+});
+
 // Index for geospatial queries
-shopSchema.index({ 'address.coordinates': '2dsphere' });
+shopSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Shop', shopSchema);
 

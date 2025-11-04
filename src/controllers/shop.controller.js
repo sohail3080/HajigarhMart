@@ -35,6 +35,26 @@ exports.getNearbyShops = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Get my shop (backward compatible - returns all shops)
+ * @route   GET /api/shops/my-shop
+ * @access  Private (Shop Owner)
+ */
+exports.getMyShop = asyncHandler(async (req, res, next) => {
+  const shops = await ShopService.getShopByOwnerId(req.user.id);
+  successResponse(res, 200, 'Shops retrieved successfully', shops);
+});
+
+/**
+ * @desc    Get all my shops
+ * @route   GET /api/shops/my-shops
+ * @access  Private (Shop Owner)
+ */
+exports.getMyShops = asyncHandler(async (req, res, next) => {
+  const shops = await ShopService.getShopsByOwnerId(req.user.id);
+  successResponse(res, 200, 'Shops retrieved successfully', shops);
+});
+
+/**
  * @desc    Get single shop
  * @route   GET /api/shops/:id
  * @access  Public

@@ -51,6 +51,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Shop',
     },
+    shops: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shop',
+    }],
     // Delivery personnel specific fields
     vehicleType: {
       type: String,

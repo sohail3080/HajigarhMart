@@ -7,16 +7,26 @@ class ShopService {
    * Create a new shop
    */
   async createShop(shopData) {
-    // Check if user already has a shop
-    const existingShop = await Shop.findOne({ owner: shopData.owner });
-    if (existingShop) {
-      throw new ErrorResponse('You already have a registered shop', 400);
+    // Allow multiple shops per owner - no restriction
+
+    // Set location in GeoJSON format
+    if (shopData.address && shopData.address.coordinates) {
+      shopData.location = {
+        type: 'Point',
+        coordinates: [
+          shopData.address.coordinates.longitude,
+          shopData.address.coordinates.latitude,
+        ],
+      };
     }
 
     const shop = await Shop.create(shopData);
 
-    // Update user's shop reference
-    await User.findByIdAndUpdate(shopData.owner, { shop: shop._id });
+    // Add shop to user's shops array
+    await User.findByIdAndUpdate(
+      shopData.owner, 
+      { $addToSet: { shops: shop._id } }
+    );
 
     return shop;
   }
@@ -32,8 +42,13 @@ class ShopService {
     let query = {};
 
     // Filter by approval status
-    if (queryParams.approvalStatus) {
-      query.approvalStatus = queryParams.approvalStatus;
+    // If approvalStatus is explicitly provided (even empty string), use it
+    // Otherwise default to 'approved' for public access
+    if ('approvalStatus' in queryParams) {
+      if (queryParams.approvalStatus !== '') {
+        query.approvalStatus = queryParams.approvalStatus;
+      }
+      // If empty string, don't filter by approval status (for admin)
     } else {
       // Default: only show approved shops for public
       query.approvalStatus = 'approved';
@@ -54,8 +69,16 @@ class ShopService {
       query.name = { $regex: queryParams.search, $options: 'i' };
     }
 
-    // Only active shops
-    if (queryParams.isActive !== 'false') {
+    // Only active shops - handle explicitly
+    if ('isActive' in queryParams) {
+      if (queryParams.isActive === 'true') {
+        query.isActive = true;
+      } else if (queryParams.isActive === 'false') {
+        query.isActive = false;
+      }
+      // If empty string, don't filter by isActive (for admin)
+    } else {
+      // Default: only active shops
       query.isActive = true;
     }
 
@@ -86,19 +109,77 @@ class ShopService {
       throw new ErrorResponse('Please provide latitude and longitude', 400);
     }
 
-    const radiusInRadians = radius / 6371; // Earth radius in km
+    const radiusInMeters = radius * 1000; // Convert km to meters
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
 
-    const shops = await Shop.find({
-      'address.coordinates': {
-        $geoWithin: {
-          $centerSphere: [[parseFloat(longitude), parseFloat(latitude)], radiusInRadians],
+    const shops = await Shop.aggregate([
+      {
+        $geoNear: {
+          near: {
+            type: 'Point',
+            coordinates: [lng, lat], // [longitude, latitude]
+          },
+          distanceField: 'distance',
+          maxDistance: radiusInMeters,
+          spherical: true,
+          key: 'location',
+          query: {
+            approvalStatus: 'approved',
+            isActive: true,
+          },
         },
       },
-      approvalStatus: 'approved',
-      isActive: true,
-    }).populate('owner', 'name phone');
+      {
+        $addFields: {
+          distance: { $divide: ['$distance', 1000] }, // Convert meters to km
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'owner',
+          foreignField: '_id',
+          as: 'owner',
+        },
+      },
+      {
+        $unwind: {
+          path: '$owner',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          'owner.password': 0,
+          'owner.role': 0,
+          'owner.approvalStatus': 0,
+          'owner.createdAt': 0,
+          'owner.updatedAt': 0,
+        },
+      },
+    ]);
 
     return { shops, count: shops.length };
+  }
+
+  /**
+   * Get all shops by owner ID
+   */
+  async getShopsByOwnerId(ownerId) {
+    const shops = await Shop.find({ owner: ownerId }).populate('owner', 'name email phone');
+    return shops; // Return array of shops (can be empty)
+  }
+
+  /**
+   * Get single shop by owner ID (for backward compatibility - returns first shop)
+   */
+  async getShopByOwnerId(ownerId) {
+    const shops = await Shop.find({ owner: ownerId }).populate('owner', 'name email phone');
+    if (!shops || shops.length === 0) {
+      throw new ErrorResponse('No shops found', 404);
+    }
+    return shops; // Return all shops
   }
 
   /**
@@ -129,6 +210,17 @@ class ShopService {
     // Don't allow updating approval status through this route
     delete updateData.approvalStatus;
     delete updateData.owner;
+
+    // Update location if coordinates changed
+    if (updateData.address && updateData.address.coordinates) {
+      updateData.location = {
+        type: 'Point',
+        coordinates: [
+          updateData.address.coordinates.longitude,
+          updateData.address.coordinates.latitude,
+        ],
+      };
+    }
 
     const updatedShop = await Shop.findByIdAndUpdate(shopId, updateData, {
       new: true,
