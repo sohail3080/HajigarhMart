@@ -61,7 +61,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    checkAuthStatus();
+    let mounted = true;
+    
+    const init = async () => {
+      await checkAuthStatus();
+    };
+    
+    if (mounted) {
+      init();
+    }
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const checkAuthStatus = async () => {
@@ -72,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (token && userData) {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
-        // Optionally verify token with backend
-        await refreshUser();
+        // Optionally verify token with backend (but don't await to avoid blocking)
+        refreshUser();
       }
     } catch (error) {
       console.error('Failed to check auth status:', error);
@@ -112,6 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: userData.role,
           avatar: userData.avatar,
           createdAt: new Date().toISOString(),
+          approvalStatus: userData.approvalStatus,
+          shop: userData.shop,
+          vehicleType: userData.vehicleType,
+          vehicleNumber: userData.vehicleNumber,
+          isAvailable: userData.isAvailable,
+          address: userData.address,
         };
 
         // Save user data
@@ -156,6 +174,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: userData.role,
           avatar: userData.avatar,
           createdAt: new Date().toISOString(),
+          approvalStatus: userData.approvalStatus,
+          shop: userData.shop,
+          vehicleType: userData.vehicleType,
+          vehicleNumber: userData.vehicleNumber,
+          isAvailable: userData.isAvailable,
+          address: userData.address,
         };
 
         // Save user data
@@ -192,6 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: userData.role,
           avatar: userData.avatar,
           createdAt: userData.createdAt || new Date().toISOString(),
+          approvalStatus: userData.approvalStatus,
+          shop: userData.shop,
+          vehicleType: userData.vehicleType,
+          vehicleNumber: userData.vehicleNumber,
+          isAvailable: userData.isAvailable,
+          address: userData.address,
         };
 
         await AsyncStorage.setItem('userData', JSON.stringify(appUser));
@@ -204,11 +234,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      console.log('🔴 [AUTH] Logging out...');
+      
+      // Clear token from API service
       await apiService.clearToken();
-      await AsyncStorage.removeItem('userData');
+      
+      // Clear all auth-related data from AsyncStorage
+      await AsyncStorage.multiRemove(['authToken', 'userData', 'shopping_cart']);
+      
+      // Clear user state
       setUser(null);
+      
+      console.log('✅ [AUTH] Logout successful');
     } catch (error) {
-      console.error('Failed to logout:', error);
+      console.error('❌ [AUTH] Failed to logout:', error);
+      // Force clear user state even if AsyncStorage fails
+      setUser(null);
     }
   };
 

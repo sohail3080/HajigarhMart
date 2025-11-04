@@ -1,7 +1,12 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
   const menuItems = [
     { id: 1, title: 'Edit Profile', icon: '👤' },
     { id: 2, title: 'My Addresses', icon: '📍' },
@@ -11,13 +16,44 @@ export default function ProfileScreen() {
     { id: 6, title: 'About', icon: 'ℹ️' },
   ];
 
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              await logout();
+              // Navigate to login after a short delay to ensure state is cleared
+              setTimeout(() => {
+                router.replace('/(auth)/login');
+              }, 100);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.profileImage} />
-        <Text style={styles.userName}>John Doe</Text>
-        <Text style={styles.userEmail}>john.doe@example.com</Text>
-        <Text style={styles.userPhone}>+91 98765 43210</Text>
+        <Text style={styles.userName}>{user?.fullName || 'User'}</Text>
+        <Text style={styles.userEmail}>{user?.email}</Text>
+        <Text style={styles.userPhone}>{user?.phone}</Text>
       </View>
 
       <View style={styles.statsContainer}>
@@ -47,8 +83,16 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
+      <TouchableOpacity 
+        style={styles.logoutButton}
+        onPress={handleLogout}
+        disabled={loggingOut}
+      >
+        {loggingOut ? (
+          <ActivityIndicator color="#dc2626" />
+        ) : (
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );

@@ -1,7 +1,12 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 export default function AdminSettingsScreen() {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
   const settingsSections = [
     {
       title: 'Platform Settings',
@@ -36,6 +41,36 @@ export default function AdminSettingsScreen() {
     },
   ];
 
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              await logout();
+              setTimeout(() => {
+                router.replace('/(auth)/login');
+              }, 100);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -45,8 +80,8 @@ export default function AdminSettingsScreen() {
       <View style={styles.profileCard}>
         <View style={styles.adminAvatar} />
         <View style={styles.adminInfo}>
-          <Text style={styles.adminName}>Admin User</Text>
-          <Text style={styles.adminEmail}>admin@hajigarhmart.com</Text>
+          <Text style={styles.adminName}>{user?.fullName || 'Admin'}</Text>
+          <Text style={styles.adminEmail}>{user?.email}</Text>
           <Text style={styles.adminRole}>Platform Administrator</Text>
         </View>
       </View>
@@ -71,8 +106,16 @@ export default function AdminSettingsScreen() {
         </View>
       ))}
 
-      <TouchableOpacity style={styles.logoutButton}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
+      <TouchableOpacity 
+        style={styles.logoutButton}
+        onPress={handleLogout}
+        disabled={loggingOut}
+      >
+        {loggingOut ? (
+          <ActivityIndicator color="#dc2626" />
+        ) : (
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );

@@ -1,7 +1,12 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 export default function DeliveryProfileScreen() {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
   const menuItems = [
     { id: 1, title: 'Personal Information', icon: '👤' },
     { id: 2, title: 'Vehicle Details', icon: '🏍️' },
@@ -11,12 +16,42 @@ export default function DeliveryProfileScreen() {
     { id: 6, title: 'Help & Support', icon: '❓' },
   ];
 
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              await logout();
+              setTimeout(() => {
+                router.replace('/(auth)/login');
+              }, 100);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.profileImage} />
-        <Text style={styles.userName}>Ramesh Singh</Text>
-        <Text style={styles.userId}>Delivery Partner ID: DP10245</Text>
+        <Text style={styles.userName}>{user?.fullName || 'Delivery Partner'}</Text>
+        <Text style={styles.userId}>ID: {user?.id?.slice(-6).toUpperCase()}</Text>
         <View style={styles.ratingContainer}>
           <Text style={styles.rating}>⭐ 4.8</Text>
           <Text style={styles.ratingCount}>(245 deliveries)</Text>
@@ -66,8 +101,16 @@ export default function DeliveryProfileScreen() {
         ))}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
+      <TouchableOpacity 
+        style={styles.logoutButton}
+        onPress={handleLogout}
+        disabled={loggingOut}
+      >
+        {loggingOut ? (
+          <ActivityIndicator color="#dc2626" />
+        ) : (
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );

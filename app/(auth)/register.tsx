@@ -157,8 +157,8 @@ export default function RegisterScreen() {
             {
               text: 'OK',
               onPress: () => {
-                // Navigation will be handled automatically by auth state
-                // If pending approval, they'll see a different screen
+                // Navigate to root which will handle role-based routing
+                router.replace('/');
               },
             },
           ]

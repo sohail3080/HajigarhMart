@@ -1,6 +1,8 @@
 // User Types
 export type UserRole = 'customer' | 'shop' | 'shop_owner' | 'delivery' | 'admin';
 
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface User {
   id: string;
   email: string;
@@ -9,6 +11,12 @@ export interface User {
   role: UserRole;
   avatar?: string;
   createdAt: string;
+  approvalStatus?: ApprovalStatus;
+  shop?: string; // Shop ID for shop owners
+  vehicleType?: string; // For delivery partners
+  vehicleNumber?: string; // For delivery partners
+  isAvailable?: boolean; // For delivery partners
+  address?: Address;
 }
 
 export interface Customer extends User {
@@ -114,8 +122,8 @@ export interface Order {
 
 // Address Type
 export interface Address {
-  id: string;
-  label: string; // Home, Work, etc.
+  id?: string;
+  label?: string; // Home, Work, etc.
   street: string;
   landmark?: string;
   city: string;
@@ -125,6 +133,19 @@ export interface Address {
     latitude: number;
     longitude: number;
   };
+}
+
+// Cart Type (Local state for customer)
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+export interface Cart {
+  shopId: string;
+  shopName: string;
+  items: CartItem[];
+  subtotal: number;
 }
 
 // Delivery Types

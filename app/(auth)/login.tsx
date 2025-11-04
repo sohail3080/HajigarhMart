@@ -64,9 +64,10 @@ export default function LoginScreen() {
       const result = await login(email.trim(), password);
 
       if (result.success) {
-        // Get user from AuthContext to determine role
-        // Navigation will be handled automatically by the auth state
-        Alert.alert('Success', 'Login successful!');
+        // Login successful - wait a moment for state to update, then navigate
+        setTimeout(() => {
+          router.replace('/');
+        }, 300);
       } else {
         Alert.alert('Login Failed', result.error || 'Invalid credentials');
       }

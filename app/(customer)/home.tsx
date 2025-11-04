@@ -1,12 +1,75 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
+import { useNearbyShops } from '@/hooks/use-shops';
+import * as Location from 'expo-location';
 
 export default function CustomerHomeScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { itemCount } = useCart();
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const { shops, loading, error, refetch } = useNearbyShops(
+    location?.latitude,
+    location?.longitude,
+    10
+  );
+
+  useEffect(() => {
+    getLocation();
+  }, []);
+
+  const getLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to find nearby shops');
+        return;
+      }
+
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      setLocation({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      });
+    } catch (error) {
+      console.error('Error getting location:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([getLocation(), refetch()]);
+    setRefreshing(false);
+  };
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
       <View style={styles.header}>
-        <Text style={styles.greeting}>Welcome to HajigarhMart! 👋</Text>
-        <Text style={styles.location}>📍 Hajigarh, Rural Area</Text>
+        <View>
+          <Text style={styles.greeting}>Welcome, {user?.fullName}! 👋</Text>
+          <Text style={styles.location}>📍 {location ? 'Location detected' : 'Detecting location...'}</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.cartButton}
+          onPress={() => router.push('/(customer)/cart')}
+        >
+          <Text style={styles.cartIcon}>🛒</Text>
+          {itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{itemCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
@@ -14,6 +77,8 @@ export default function CustomerHomeScreen() {
           style={styles.searchInput}
           placeholder="Search for products or shops..."
           placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
 
@@ -31,42 +96,48 @@ export default function CustomerHomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Nearby Shops</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(customer)/shops')}>
             <Text style={styles.seeAll}>See All</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.shopsGrid}>
-          {[1, 2, 3, 4].map((shop) => (
-            <TouchableOpacity key={shop} style={styles.shopCard}>
-              <View style={styles.shopImage} />
-              <Text style={styles.shopName}>Shop Name {shop}</Text>
-              <Text style={styles.shopDistance}>0.{shop} km away</Text>
-              <Text style={styles.shopRating}>⭐ 4.{shop}</Text>
+        
+        {loading && !refreshing ? (
+          <ActivityIndicator size="large" color="#2E7D32" style={styles.loader} />
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={refetch}>
+              <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        ) : shops.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No shops found nearby</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your location or search radius</Text>
+          </View>
+        ) : (
+          <View style={styles.shopsGrid}>
+            {shops.slice(0, 4).map((shop: any) => (
+              <TouchableOpacity 
+                key={shop._id} 
+                style={styles.shopCard}
+                onPress={() => router.push(`/(customer)/shop/${shop._id}`)}
+              >
+                <View style={styles.shopImage}>
+                  {shop.images?.[0] && <Text>🏪</Text>}
+                </View>
+                <Text style={styles.shopName} numberOfLines={1}>{shop.name}</Text>
+                <Text style={styles.shopCategory}>{shop.category}</Text>
+                <Text style={styles.shopDistance}>
+                  {shop.distance ? `${shop.distance.toFixed(1)} km away` : 'Nearby'}
+                </Text>
+                <Text style={styles.shopRating}>⭐ {shop.rating?.toFixed(1) || '0.0'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Popular Products</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>See All</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {[1, 2, 3, 4].map((product) => (
-            <TouchableOpacity key={product} style={styles.productCard}>
-              <View style={styles.productImage} />
-              <Text style={styles.productName}>Product {product}</Text>
-              <Text style={styles.productPrice}>₹{product * 99}</Text>
-              <TouchableOpacity style={styles.addToCartBtn}>
-                <Text style={styles.addToCartText}>Add to Cart</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
     </ScrollView>
   );
 }
@@ -80,6 +151,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#2E7D32',
     padding: 20,
     paddingTop: 60,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  cartButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  cartIcon: {
+    fontSize: 24,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#ff0000',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   greeting: {
     fontSize: 24,
@@ -168,6 +265,11 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
   },
+  shopCategory: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
   shopDistance: {
     fontSize: 12,
     color: '#666',
@@ -176,6 +278,42 @@ const styles = StyleSheet.create({
   shopRating: {
     fontSize: 12,
     color: '#f59e0b',
+  },
+  loader: {
+    marginVertical: 20,
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#dc2626',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#2E7D32',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   productCard: {
     backgroundColor: '#fff',
